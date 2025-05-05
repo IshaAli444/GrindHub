@@ -1,0 +1,831 @@
+•	User Class: 
+package org.example;
+
+import java.io.Serializable;
+import java.util.LinkedList;
+import java.util.Queue;
+
+public class User implements Serializable {
+    private String username;
+    private Queue<String> posts; // Queue for user's posts (FCFS)
+    private LinkedList<String> friends; // List of friends
+
+    public User(String username) {
+        this.username = username;
+        this.posts = new LinkedList<>();
+        this.friends = new LinkedList<>();
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public LinkedList<String> getFriends() {
+        return friends;
+    }
+
+    public Queue<String> getPosts() {
+        return posts;
+    }
+
+    public void addPost(String content) {
+
+//        posts.add(content);
+
+        if (posts.size() >= 10) { // Example: limit to 10 posts
+            posts.poll(); // Remove the oldest post
+        }
+        posts.add(content + " (posted at " + java.time.LocalDateTime.now() + ")");
+    }
+
+    public void addFriend(String friendUsername) {
+        if (!friends.contains(friendUsername)) {
+            friends.add(friendUsername);
+        } else if (friends.contains(friendUsername)) {
+            System.out.println("You are already friends with " + friendUsername);
+        } else if (friendUsername.equals(username)) {
+            System.out.println("You cannot add yourself as a friend");
+        }
+    }
+
+    public void removeFriend(String friendUsername) {
+        friends.remove(friendUsername);
+    }
+
+    @Override
+    public String toString() {
+        return "Username: " + username + ", Friends: " + friends + ", Posts: " + posts;
+    }
+}
+•	Social Network Class: 
+package org.example;
+
+import java.io.*;
+import java.util.*;
+
+public class SocialNetwork {
+    private Map<String, User> users; // User graph
+    private Map<String, String> credentials; // Stores username-password pairs
+    private final String filePath = "socialnetwork.dat"; // File path for data storage
+
+    public SocialNetwork() {
+        users = new HashMap<>();
+        credentials = new HashMap<>();
+        loadFromFile(); // Load data on initialization
+    }
+
+    // Add a new user during sign-up
+    public boolean addUser(String username, String password) {
+        if (!credentials.containsKey(username)) {
+            credentials.put(username, password);
+            users.put(username, new User(username));
+            saveToFile();
+            return true;
+        }
+        return false; // Username already exists
+    }
+
+    // Validate login credentials
+    public boolean validateLogin(String username, String password) {
+        return credentials.containsKey(username) && credentials.get(username).equals(password);
+    }
+
+    // Add a friendship between two users
+    public boolean addFriend(String user1, String user2) {
+        if (users.containsKey(user1) && users.containsKey(user2)) {
+            users.get(user1).addFriend(user2);
+            users.get(user2).addFriend(user1);
+            saveToFile();
+            return true;
+        }
+        return false;
+    }
+
+    // Remove a friendship
+    public boolean deleteFriend(String user1, String user2) {
+        if (users.containsKey(user1) && users.containsKey(user2)) {
+            users.get(user1).removeFriend(user2);
+            users.get(user2).removeFriend(user1);
+            saveToFile();
+            return true;
+        }
+        return false;
+    }
+
+    // Display mutual friends between two users
+    public List<String> displayMutualFriends(String user1, String user2) {
+        List<String> mutualFriends = new ArrayList<>();
+        if (users.containsKey(user1) && users.containsKey(user2)) {
+            List<String> friendsOfUser1 = users.get(user1).getFriends();
+            List<String> friendsOfUser2 = users.get(user2).getFriends();
+            for (String friend : friendsOfUser1) {
+                if (friendsOfUser2.contains(friend)) {
+                    mutualFriends.add(friend);
+                }
+            }
+        }
+        return mutualFriends;
+    }
+
+    // Suggest friends-of-friends as potential connections
+    public Set<String> suggestFriends(String username) {
+        Set<String> suggestions = new HashSet<>();
+        if (users.containsKey(username)) {
+            List<String> directFriends = users.get(username).getFriends();
+            for (String friend : directFriends) {
+                for (String friendOfFriend : users.get(friend).getFriends()) {
+                    if (!friendOfFriend.equals(username) && !directFriends.contains(friendOfFriend)) {
+                        suggestions.add(friendOfFriend);
+                    }
+                }
+            }
+        }
+        return suggestions;
+    }
+
+    // User posting system
+    public boolean addPost(String username, String content) {
+        if (users.containsKey(username)) {
+            users.get(username).addPost(content);
+            saveToFile();
+            return true;
+        }
+        return false;
+    }
+
+    // Display posts for a user (FCFS)
+    public Queue<String> displayPosts(String username) {
+        if (users.containsKey(username)) {
+            return users.get(username).getPosts();
+        }
+        return new LinkedList<>();
+    }
+
+    // Save data to file
+    private void saveToFile() {
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(filePath))) {
+            oos.writeObject(users);
+            oos.writeObject(credentials);
+        } catch (IOException e) {
+            System.out.println("Error saving data: " + e.getMessage());
+        }
+    }
+
+    // Load data from file
+    private void loadFromFile() {
+        try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(filePath))) {
+            users = (Map<String, User>) ois.readObject();
+            credentials = (Map<String, String>) ois.readObject();
+        } catch (FileNotFoundException e) {
+            System.out.println("No saved data found. Starting fresh...");
+        } catch (IOException | ClassNotFoundException e) {
+            System.out.println("Error loading data: " + e.getMessage());
+        }
+    }
+
+    // Display all users
+    public void displayAllUsers() {
+        for (User user : users.values()) {
+            System.out.println(user);
+        }
+    }
+
+    public Map<String, User> getUsers() {
+        return users;
+    }
+
+}
+FRONTEND:
+•	LoginPage Class: 
+
+package org.example;
+
+import javafx.animation.FadeTransition;
+import javafx.animation.SequentialTransition;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.Text;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+
+public class LoginPage {
+    private Stage stage;
+    private SocialNetwork socialNetwork;
+
+    public LoginPage(Stage stage, SocialNetwork socialNetwork) {
+        this.stage = stage;
+        this.socialNetwork = socialNetwork;
+
+        // Set the application icon
+        stage.getIcons().add(new Image("file:C:\\Users\\786\\IdeaProjects\\GrindHubApp\\src\\main\\resources\\images\\logo.png"));
+    }
+
+    public void showLoginPage(Stage primaryStage) {
+
+        StackPane root = new StackPane();
+
+        // Set up ImageView to properly scale the image
+        Image backgroundImage = new Image("file:C:\\Users\\786\\IdeaProjects\\GrindHubApp\\src\\main\\resources\\images\\bg3 login.jpg", true); // Load image
+        ImageView backgroundImageView = new ImageView(backgroundImage);
+
+        // Set the image to fit the screen while preserving the aspect ratio
+        backgroundImageView.setPreserveRatio(true);
+
+        // Bind image size to scene's width and height
+        backgroundImageView.fitWidthProperty().bind(primaryStage.widthProperty());
+        backgroundImageView.fitHeightProperty().bind(primaryStage.heightProperty());
+
+        // Add the background image to the root container
+        root.getChildren().add(backgroundImageView);
+
+        // Create the login box (centered with lowered opacity)
+        VBox loginBox = new VBox(15);
+        loginBox.setStyle("-fx-background-color: rgba(210, 180, 140, 0.7); -fx-padding: 20;"); // Adjusted opacity for the box
+        loginBox.setMaxWidth(300); // Set a max width for the box
+        loginBox.setMinWidth(250); // Set a minimum width for the box
+        loginBox.setAlignment(Pos.CENTER);
+
+        // Welcome Text
+        Label welcomeText = new Label("Welcome back,");
+        welcomeText.setFont(new Font("Impact", 40));
+        welcomeText.setTextFill(Color.rgb(111, 78, 55));
+        welcomeText.setOpacity(0); // Set initial opacity to 0 for animation
+
+        Label gangText = new Label("GANG!!!");
+        gangText.setFont(new Font("Impact", 30));
+        gangText.setTextFill(Color.rgb(111, 78, 55));
+        gangText.setOpacity(0); // Set initial opacity to 0 for animation
+
+        // Username and password fields
+        TextField usernameField = new TextField();
+        usernameField.setPromptText("Username");
+        usernameField.setMaxWidth(250);
+        usernameField.setOpacity(0); // Set initial opacity to 0 for animation
+
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        passwordField.setMaxWidth(250);
+        passwordField.setOpacity(0); // Set initial opacity to 0 for animation
+
+        // Login button with updated brown color
+        Button loginButton = new Button("Login");
+        loginButton.setStyle("-fx-background-color: #6f4f37; -fx-text-fill: white;"); // Brown color
+        loginButton.setMaxWidth(250);
+        loginButton.setOpacity(0); // Set initial opacity to 0 for animation
+
+        // "New to the grind?" Text
+        Text signUpPrompt = new Text("New to the grind?");
+        signUpPrompt.setFont(Font.font("Impact", 15));
+        signUpPrompt.setFill(Color.rgb(111, 78, 55));
+        signUpPrompt.setOpacity(0); // Set initial opacity to 0 for animation
+
+        // Sign up button
+        Button signUpButton = new Button("Sign Up");
+        signUpButton.setStyle("-fx-background-color: #6f4f37; -fx-text-fill: white;"); // Brown color
+        signUpButton.setMaxWidth(250);
+        signUpButton.setOpacity(0); // Set initial opacity to 0 for animation
+
+        // Add elements to VBox
+        loginBox.getChildren().addAll(welcomeText, gangText, usernameField, passwordField, loginButton, signUpPrompt, signUpButton);
+        root.getChildren().add(loginBox);
+
+        // Add fade-in animation
+        fadeInElements(loginBox);
+
+        // Apply animations
+        FadeTransition fadeInTitle = new FadeTransition(Duration.seconds(1), welcomeText);
+        fadeInTitle.setToValue(1);
+
+        FadeTransition fadeInTitleLine2 = new FadeTransition(Duration.seconds(1), gangText);
+        fadeInTitleLine2.setToValue(1);
+
+        FadeTransition fadeInFields = new FadeTransition(Duration.seconds(1), usernameField);
+        fadeInFields.setToValue(1);
+
+        FadeTransition fadeInPassword = new FadeTransition(Duration.seconds(1), passwordField);
+        fadeInPassword.setToValue(1);
+
+        FadeTransition fadeInButton = new FadeTransition(Duration.seconds(1), loginButton);
+        fadeInButton.setToValue(1);
+
+        FadeTransition fadeInSignUpPrompt = new FadeTransition(Duration.seconds(1), signUpPrompt);
+        fadeInSignUpPrompt.setToValue(1);
+
+        FadeTransition fadeInSignUpButton = new FadeTransition(Duration.seconds(1), signUpButton);
+        fadeInSignUpButton.setToValue(1);
+
+        // Animation sequence
+        SequentialTransition sequentialTransition = new SequentialTransition(fadeInTitle, fadeInTitleLine2, fadeInFields, fadeInPassword, fadeInButton, fadeInSignUpPrompt, fadeInSignUpButton);
+        sequentialTransition.setCycleCount(1);
+        sequentialTransition.play();
+
+        // Button Actions
+        loginButton.setOnAction(e -> {
+            String username = usernameField.getText();
+            String password = passwordField.getText();
+
+            // Backend validation using the socialNetwork object
+            if (socialNetwork.validateLogin(username, password)) {
+                // Show a funny dialog box
+                Alert loginAlert = new Alert(Alert.AlertType.INFORMATION);
+                loginAlert.setTitle("WELCOME!");
+                loginAlert.setHeaderText(null);
+                loginAlert.setContentText("Well done, you've survived the login! Time to grind!!!");
+
+                // Wait for the user to click 'OK' before showing the dashboard
+                ButtonType okButton = new ButtonType("Honoured");
+                loginAlert.getButtonTypes().setAll(okButton);
+
+                // Show the dialog and wait for user input
+                loginAlert.showAndWait().ifPresent(response -> {
+                    if (response == okButton) {
+                        // After user clicks 'OK', navigate to the Dashboard
+                        new DashboardPage(stage, socialNetwork, username).showDashboard();
+                    }
+                });
+            } else {
+                // If credentials are invalid, show error message
+                Label errorLabel = new Label("Invalid credentials. Please try again.");
+                errorLabel.setTextFill(Color.RED);
+                loginBox.getChildren().add(errorLabel);
+                fadeInElements(errorLabel); // Optional fade-in for error message
+            }
+        });
+
+        signUpButton.setOnAction(e -> {
+            new SignUpPage(stage, socialNetwork).showSignUpPage(stage);
+        });
+
+        // Set scene and stage
+        Scene scene = new Scene(root, 800, 600);
+        stage.setScene(scene);
+        stage.setTitle("GrindHub- Get Smart, Stay Weird");
+        stage.show();
+    }
+
+    // Helper method to fade in elements
+    private void fadeInElements(javafx.scene.Node... nodes) {
+        for (javafx.scene.Node node : nodes) {
+            FadeTransition fadeTransition = new FadeTransition(Duration.seconds(1), node);
+            fadeTransition.setFromValue(0);
+            fadeTransition.setToValue(1);
+            fadeTransition.play();
+        }
+    }
+}
+
+•	SignUpPage Class: 
+package org.example;
+
+import javafx.animation.FadeTransition;
+import javafx.animation.SequentialTransition;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
+import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+
+public class SignUpPage {
+    private Stage stage;
+    private SocialNetwork socialNetwork;
+
+    public SignUpPage(Stage stage, SocialNetwork socialNetwork) {
+        this.stage = stage;
+        this.socialNetwork = socialNetwork;
+
+        // Set the application icon
+        stage.getIcons().add(new Image("file:C:\\Users\\786\\IdeaProjects\\GrindHubApp\\src\\main\\resources\\images\\logo.png"));
+    }
+
+    public void showSignUpPage(Stage primaryStage) {
+
+        // Root container
+        StackPane root = new StackPane();
+
+        // Set up ImageView to properly scale the background image
+        Image backgroundImage = new Image("file:C:\\Users\\786\\IdeaProjects\\GrindHubApp\\src\\main\\resources\\images\\bg4 signup.jpg", true);
+        ImageView backgroundImageView = new ImageView(backgroundImage);
+
+        // Set the image to fit the screen while preserving the aspect ratio
+        backgroundImageView.setPreserveRatio(true);
+        backgroundImageView.fitWidthProperty().bind(primaryStage.widthProperty());
+        backgroundImageView.fitHeightProperty().bind(primaryStage.heightProperty());
+
+        // Add the background image to the root container
+        root.getChildren().add(backgroundImageView);
+
+        // Create the sign-up box (centered with lowered opacity)
+        VBox signUpBox = new VBox(15);
+        signUpBox.setStyle("-fx-background-color: rgba(210, 180, 140, 0.7); -fx-padding: 20;");
+        signUpBox.setMaxWidth(300);
+        signUpBox.setMinWidth(250);
+        signUpBox.setAlignment(Pos.CENTER);
+
+        root.setAlignment(signUpBox, Pos.CENTER);
+
+        // Title text with animation
+        Text title = new Text("Create an Account");
+        title.setFont(Font.font("Impact", 40));
+        title.setFill(Color.rgb(111, 78, 55));
+        title.setOpacity(0); // Set initial opacity to 0 for animation
+
+        // Username, password, and confirm password fields
+        TextField usernameField = new TextField();
+        usernameField.setPromptText("Username");
+        usernameField.setMaxWidth(250);
+        usernameField.setOpacity(0); // Set initial opacity to 0 for animation
+
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        passwordField.setMaxWidth(250);
+        passwordField.setOpacity(0); // Set initial opacity to 0 for animation
+
+        PasswordField confirmPasswordField = new PasswordField();
+        confirmPasswordField.setPromptText("Confirm Password");
+        confirmPasswordField.setMaxWidth(250);
+        confirmPasswordField.setOpacity(0); // Set initial opacity to 0 for animation
+
+        // Sign up button
+        Button signUpButton = new Button("Sign Up");
+        signUpButton.setStyle("-fx-background-color: #6f4f37; -fx-text-fill: white;");
+        signUpButton.setMaxWidth(250);
+        signUpButton.setOpacity(0); // Set initial opacity to 0 for animation
+
+        // Sign up button
+        Button loginButton = new Button("Already grindin' ?");
+        loginButton.setStyle("-fx-background-color: #6f4f37; -fx-text-fill: white;");
+        loginButton.setMaxWidth(250);
+        loginButton.setOpacity(0); // Set initial opacity to 0 for animation
+
+        // Add elements to the sign-up box
+        signUpBox.getChildren().addAll(title, usernameField, passwordField, confirmPasswordField, signUpButton, loginButton);
+        signUpBox.setAlignment(javafx.geometry.Pos.CENTER); // Center the elements in the box
+
+        // Add the sign-up box to the root container
+        root.getChildren().add(signUpBox);
+
+        // Apply animations
+        FadeTransition fadeInTitle = new FadeTransition(Duration.seconds(1), title);
+        fadeInTitle.setToValue(1);
+
+        FadeTransition fadeInFields = new FadeTransition(Duration.seconds(1), usernameField);
+        fadeInFields.setToValue(1);
+
+        FadeTransition fadeInPassword = new FadeTransition(Duration.seconds(1), passwordField);
+        fadeInPassword.setToValue(1);
+
+        FadeTransition fadeInConfirmPassword = new FadeTransition(Duration.seconds(1), confirmPasswordField);
+        fadeInConfirmPassword.setToValue(1);
+
+        FadeTransition fadeInButton = new FadeTransition(Duration.seconds(1), signUpButton);
+        fadeInButton.setToValue(1);
+
+        FadeTransition fadeInBackToLogin = new FadeTransition(Duration.seconds(1), loginButton);
+        fadeInBackToLogin.setToValue(1);
+
+        // Animation sequence
+        SequentialTransition sequentialTransition = new SequentialTransition(
+                fadeInTitle, fadeInFields, fadeInPassword, fadeInConfirmPassword, fadeInButton, fadeInBackToLogin
+        );
+        sequentialTransition.setCycleCount(1);
+        sequentialTransition.play();
+
+        Label resultLabel = new Label();
+        resultLabel.setFont(Font.font(" Impact", FontWeight.BOLD, 16));
+        resultLabel.setTextFill(Color.rgb(111, 78, 55));
+        resultLabel.setWrapText(true);
+        resultLabel.setAlignment(Pos.CENTER);
+        resultLabel.setMaxWidth(250); // To ensure proper width for wrapping
+
+// Add the resultLabel to the sign-up box
+        signUpBox.getChildren().add(resultLabel);
+
+
+        // Button Actions
+        signUpButton.setOnAction(e -> {
+            String username = usernameField.getText();
+            String password = passwordField.getText();
+            String confirmPassword = confirmPasswordField.getText(); // Assuming you have a field for confirm password
+
+            if (!password.equals(confirmPassword)) {
+                resultLabel.setText("Looks like your password and confirm password need some relationship counseling!");
+            } else {
+                if (socialNetwork.addUser(username, password)) {
+                    resultLabel.setText("Congratulations gang! Sign-Up successful! (Go to login)");
+                } else {
+                    resultLabel.setText("Username’s claimed! Get more creative!");
+                }
+            }
+        });
+
+        loginButton.setOnAction(e -> new LoginPage(stage, socialNetwork).showLoginPage(stage));
+
+        // Set the stage
+        Scene scene = new Scene(root, 800, 600);
+        primaryStage.setTitle("GrindHub- Get Smart, Stay Weird");
+        primaryStage.setScene(scene);
+        primaryStage.show();
+    }
+}
+•	DashboardPage Class: 
+package org.example;
+
+import javafx.animation.FadeTransition;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+
+import java.util.List;
+import java.util.Queue;
+import java.util.Random;
+import java.util.Set;
+
+public class DashboardPage {
+    private Stage stage;
+    private SocialNetwork socialNetwork;
+    private String currentUser;
+
+    // List of funny messages
+    private List<String> funnyMessages = List.of(
+            "Your GPA may be low, but your spirits won't be!",
+            "Be the Genius You Pretend to Be on Group Chats",
+            "Study Like It’s Your Job (Because It Is)"
+    );
+
+    public DashboardPage(Stage stage, SocialNetwork socialNetwork, String currentUser) {
+        this.stage = stage;
+        this.socialNetwork = socialNetwork;
+        this.currentUser = currentUser;
+
+        // Set the application icon
+        stage.getIcons().add(new Image("file:C:\\Users\\786\\IdeaProjects\\GrindHubApp\\src\\main\\resources\\images\\logo.png"));
+    }
+
+    public void showDashboard() {
+        // Root container
+        StackPane root = new StackPane();
+
+        // Set up ImageView for the background
+        Image backgroundImage = new Image("file:C:\\Users\\786\\IdeaProjects\\GrindHubApp\\src\\main\\resources\\images\\bg5 dashboard.jpg", true);
+        ImageView backgroundImageView = new ImageView(backgroundImage);
+        backgroundImageView.setPreserveRatio(true);
+        backgroundImageView.fitWidthProperty().bind(stage.widthProperty());
+        backgroundImageView.fitHeightProperty().bind(stage.heightProperty());
+
+        root.getChildren().add(backgroundImageView);
+
+        // Dashboard content
+        VBox dashboardBox = new VBox(15);
+        dashboardBox.setStyle("-fx-background-color: rgba(210, 180, 140, 0.7); -fx-padding: 20; -fx-background-radius: 10;");
+        dashboardBox.setAlignment(Pos.CENTER);
+        dashboardBox.setMaxWidth(400);
+
+        // Add logo at the top
+        Image logoImage = new Image("file:C:\\Users\\786\\IdeaProjects\\GrindHubApp\\src\\main\\resources\\images\\logo.png", 100, 100, true, true); // Adjust size as needed
+        ImageView logoImageView = new ImageView(logoImage);
+
+        // Welcome label
+        Label welcomeLabel = new Label("Welcome, " + currentUser + "!");
+        welcomeLabel.setFont(Font.font("Impact", 30));
+        welcomeLabel.setTextFill(Color.rgb(111, 78, 55));
+
+        // Funny message
+        Label funnyMessageLabel = new Label(getRandomFunnyMessage());
+        funnyMessageLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        funnyMessageLabel.setTextFill(Color.rgb(111, 78, 55));
+
+        // Buttons
+        Button addPostBtn = new Button("Share your Thought");
+        Button viewPostsBtn = new Button("Check the Feed");
+        Button addFriendBtn = new Button("Connect with a Peer");
+        Button removeFriendBtn = new Button("Unlink Connection");
+        Button viewFriendsBtn = new Button("My Study Circle");
+        Button mutualFriendsBtn = new Button("Shared Connections");
+        Button friendSuggestionsBtn = new Button("Peer Recommendations");
+        Button logoutBtn = new Button("Log off the Grind");
+
+        // Button styles
+        String buttonStyle = "-fx-background-color: #6f4f37; -fx-text-fill: white;";
+        addPostBtn.setStyle(buttonStyle);
+        viewPostsBtn.setStyle(buttonStyle);
+        addFriendBtn.setStyle(buttonStyle);
+        removeFriendBtn.setStyle(buttonStyle);
+        viewFriendsBtn.setStyle(buttonStyle);
+        mutualFriendsBtn.setStyle(buttonStyle);
+        friendSuggestionsBtn.setStyle(buttonStyle);
+        logoutBtn.setStyle(buttonStyle);
+
+        // Set button widths
+        addPostBtn.setPrefWidth(200);
+        viewPostsBtn.setPrefWidth(200);
+        addFriendBtn.setPrefWidth(200);
+        removeFriendBtn.setPrefWidth(200);
+        viewFriendsBtn.setPrefWidth(200);
+        mutualFriendsBtn.setPrefWidth(200);
+        friendSuggestionsBtn.setPrefWidth(200);
+        logoutBtn.setPrefWidth(200);
+
+        // Add components to dashboard box
+        dashboardBox.getChildren().addAll(
+                logoImageView,
+                welcomeLabel,
+                funnyMessageLabel,
+                addPostBtn, viewPostsBtn,
+                addFriendBtn, removeFriendBtn, viewFriendsBtn,
+                mutualFriendsBtn, friendSuggestionsBtn,
+                logoutBtn
+        );
+
+        // Add dashboard box to the root container
+        root.getChildren().add(dashboardBox);
+
+        // Apply fade-in animation to the dashboard box
+        FadeTransition fadeIn = new FadeTransition(Duration.seconds(1), dashboardBox);
+        fadeIn.setFromValue(0);
+        fadeIn.setToValue(1);
+        fadeIn.play();
+
+        // Button Actions
+        addPostBtn.setOnAction(e -> {
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Add Post");
+            dialog.setHeaderText("What's on your mind?");
+            dialog.setContentText("Enter your post:");
+            dialog.showAndWait().ifPresent(content -> {
+                boolean success = socialNetwork.addPost(currentUser, content);
+                showAlert("Add Post", success ? "Post added successfully!" : "Failed to add post.");
+            });
+        });
+
+        // View Posts button with search functionality
+        viewPostsBtn.setOnAction(e -> {
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Search Posts");
+            dialog.setHeaderText("Search for posts by username");
+            dialog.setContentText("Enter username:");
+            dialog.showAndWait().ifPresent(username -> {
+                Queue<String> posts = socialNetwork.displayPosts(username);
+                String postContent = posts.isEmpty() ? "No posts found." : String.join("\n", posts);
+                showAlert("View Posts", postContent);
+            });
+        });
+
+        addFriendBtn.setOnAction(e -> {
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Add Friend");
+            dialog.setHeaderText("Add a Friend");
+            dialog.setContentText("Enter friend's username:");
+            dialog.showAndWait().ifPresent(friend -> {
+                boolean success = socialNetwork.addFriend(currentUser, friend);
+                showAlert("Add Friend", success ? "Friend added successfully!" : "Failed to add friend. User not found.");
+            });
+        });
+
+        removeFriendBtn.setOnAction(e -> {
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("Remove Friend");
+            dialog.setHeaderText("Remove a Friend");
+            dialog.setContentText("Enter friend's username:");
+            dialog.showAndWait().ifPresent(friend -> {
+                boolean success = socialNetwork.deleteFriend(currentUser, friend);
+                showAlert("Remove Friend", success ? "Friend removed successfully!" : "Failed to remove friend. User not found.");
+            });
+        });
+
+        viewFriendsBtn.setOnAction(e -> {
+            List<String> friends = socialNetwork.getUsers().get(currentUser).getFriends();
+            String friendList = friends.isEmpty() ? "No friends yet." : String.join(", ", friends);
+            showAlert("View Friends", friendList);
+        });
+
+        mutualFriendsBtn.setOnAction(e -> {
+            TextInputDialog dialog = new TextInputDialog();
+            dialog.setTitle("View Mutual Friends");
+            dialog.setHeaderText("Find Mutual Friends");
+            dialog.setContentText("Enter friend's username:");
+            dialog.showAndWait().ifPresent(friend -> {
+                List<String> mutualFriends = socialNetwork.displayMutualFriends(currentUser, friend);
+                String mutualList = mutualFriends.isEmpty() ? "No mutual friends." : String.join(", ", mutualFriends);
+                showAlert("View Mutual Friends", mutualList);
+            });
+        });
+
+        friendSuggestionsBtn.setOnAction(e -> {
+            Set<String> suggestions = socialNetwork.suggestFriends(currentUser);
+            String suggestionList = suggestions.isEmpty() ? "No friend suggestions." : String.join(", ", suggestions);
+            showAlert("Friend Suggestions", suggestionList);
+        });
+
+        logoutBtn.setOnAction(e -> {
+            new LoginPage(stage, socialNetwork).showLoginPage(stage);
+        });
+
+        // Set the scene and show the stage
+        Scene scene = new Scene(root, 800, 600);
+        stage.setTitle("GrindHub- Get Smart, Stay Weird");
+        stage.setScene(scene);
+        stage.show();
+    }
+
+    // Randomly selects a funny message
+    private String getRandomFunnyMessage() {
+        Random random = new Random();
+        return funnyMessages.get(random.nextInt(funnyMessages.size()));
+    }
+
+    private void showAlert(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+}
+
+•	Main Class: 
+package org.example;
+
+import javafx.application.Application;
+import javafx.stage.Stage;
+
+public class Main extends Application {
+    private SocialNetwork socialNetwork = new SocialNetwork();
+
+    @Override
+    public void start(Stage primaryStage) {
+        LoginPage loginPage = new LoginPage(primaryStage, socialNetwork);
+        loginPage.showLoginPage(primaryStage);
+    }
+
+    public static void main(String[] args) {
+        launch(args);
+    }
+}
+•	pomxml file: 
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.example</groupId>
+    <artifactId>GrindHubApp</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>22</maven.compiler.source>
+        <maven.compiler.target>22</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- JavaFX Controls -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>23.0.1</version>
+        </dependency>
+
+        <!-- JavaFX FXML -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>23.0.1</version>
+        </dependency>
+
+        <!-- JavaFX Graphics -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-graphics</artifactId>
+            <version>23.0.1</version>
+        </dependency>
+    </dependencies>
+</project>
